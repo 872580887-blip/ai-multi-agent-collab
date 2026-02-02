@@ -1,0 +1,34 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# 日志文件
+*.log
+logs/
+
+# 消息队列（运行时生成）
+.kiro-chat-messages/*.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 环境变量
+.env
+.env.local
+
+# 临时文件
+tmp/
+temp/
+*.tmp
