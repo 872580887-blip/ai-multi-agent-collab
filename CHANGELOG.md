@@ -1,5 +1,20 @@
 # 📜 CHANGELOG
 
+## v0.1.1 (2026-02-02)
+### 🔧 修复
+- **路径解耦**：移除所有硬编码绝对路径（3 处）
+  - `src/bridge-server.js`: 使用 `OPENCLAW_PATH` 环境变量 + 自动检测
+  - `src/rpa-notifier.js`: 使用 `MESSAGE_DIR` 环境变量 + 自动检测
+  - `diagnose-session.sh`: 使用 `SCRIPT_DIR` 相对路径
+- **跨平台兼容性**：项目现在可在任意用户目录下运行
+- **健康评分提升**：从 65/100 → 87/100
+
+### 📄 文档
+- 更新 `PROJECT-HEALTH-REPORT.md`：标记路径问题已修复
+- 新增环境变量配置说明
+
+---
+
 ## v0.1.0 (2026-02-02)
 ### ✨ 新增
 - 初始版本发布：AI 多智能体协作系统 MVP  

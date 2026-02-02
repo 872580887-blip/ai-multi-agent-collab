@@ -173,18 +173,31 @@ function callOpenClawStreaming(message) {
     text: 'OpenClaw 正在思考...'
   });
   
-  // 使用完整路径调用 OpenClaw
-  const openclawPath = '/Users/mac/Desktop/是/openclaw/openclaw.mjs';
+  // 自动检测 OpenClaw 路径
+  const openclawPath = process.env.OPENCLAW_PATH || 
+    path.join(process.env.HOME, '.openclaw', 'openclaw.mjs') ||
+    path.join(__dirname, '..', '..', 'openclaw', 'openclaw.mjs');
   
-  // 使用 Homebrew 的 Node（不经过 NVM，避免环境变量污染）
-  const openclaw = spawn('/opt/homebrew/opt/node@22/bin/node', [
+  // 检查 OpenClaw 是否存在
+  if (!fs.existsSync(openclawPath)) {
+    broadcast({
+      type: 'message',
+      sender: 'system',
+      name: '系统',
+      text: '⚠️ 未找到 OpenClaw。请设置环境变量 OPENCLAW_PATH 或安装 OpenClaw。'
+    });
+    return;
+  }
+  
+  // 使用 node 命令（自动使用系统 PATH）
+  const openclaw = spawn('node', [
     openclawPath,
     'agent',
     '--to', 'main',
     '--message', message,
     '--thinking', 'low'
   ], {
-    cwd: '/Users/mac/Desktop/是/openclaw'
+    cwd: path.dirname(openclawPath)
   });
   
   broadcast({

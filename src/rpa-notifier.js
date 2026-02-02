@@ -10,8 +10,18 @@ const { exec, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const MESSAGE_DIR = '/Users/mac/Desktop/是/.kiro-chat-messages';
-const LOG_FILE = 'kiro-notifier.log';
+// 自动检测消息目录（优先使用环境变量）
+const MESSAGE_DIR = process.env.MESSAGE_DIR || 
+  path.join(process.env.HOME, '.kiro-chat-messages') ||
+  path.join(__dirname, '..', '.kiro-chat-messages');
+
+const LOG_FILE = path.join(MESSAGE_DIR, 'kiro-notifier.log');
+
+// 确保消息目录存在
+if (!fs.existsSync(MESSAGE_DIR)) {
+  fs.mkdirSync(MESSAGE_DIR, { recursive: true });
+  console.log(`📁 创建消息目录: ${MESSAGE_DIR}`);
+}
 
 // 日志函数
 function log(msg) {

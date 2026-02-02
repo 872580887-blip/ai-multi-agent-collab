@@ -1,1 +1,110 @@
-#!/bin/bash\n# diagnose-session.sh —— Collab-in-a-Box 核心启动器\n# 用法：./diagnose-session.sh --task "分析这份日志" --timeout 10m\n\nset -e\n\nTASK=""\nTIMEOUT="10m"\nTEMP_DIR=""\n\nprint_usage() {\n  echo "Usage: $0 --task \"<任务描述>\" [--timeout <duration>] [--help]"\n  echo "  --task      任务描述（必填）"\n  echo "  --timeout   超时时间（默认 10m）"\n  echo "  --help      显示此帮助"\n}\n\nwhile [[ $# -gt 0 ]]; do\n  case $1 in\n    --task)\n      TASK=\"$2\"\n      shift 2\n      ;;\n    --timeout)\n      TIMEOUT=\"$2\"\n      shift 2\n      ;;\n    --help|-h)\n      print_usage\n      exit 0\n      ;;\n    *)\n      echo "未知参数: $1"\n      print_usage\n      exit 1\n      ;;\n  esac\ndone\n\nif [[ -z \"$TASK\" ]]; then\n  echo \"❌ 错误：--task 参数为必填项\"\n  print_usage\n  exit 1\nfi\n\n# 创建临时会话目录（隔离）\nTEMP_DIR=$(mktemp -d -t collab-session-XXXXXX)\necho \"📁 创建临时会话目录：$TEMP_DIR\"\n\n# 启动桥接服务（监听临时目录）\nnode /Users/mac/Desktop/是/ai-multi-agent-collab/src/bridge-server.js \n  --message-dir \"$TEMP_DIR\" \n  --port 8768 > \"$TEMP_DIR/bridge.log\" 2>&1 &\n\nBRIDGE_PID=$!\necho \"🌐 启动桥接服务（端口 8768）→ PID $BRIDGE_PID\"\n\n# 启动 RPA 监听（监听临时目录）\nnode /Users/mac/Desktop/是/ai-multi-agent-collab/src/rpa-notifier.js \n  --message-dir \"$TEMP_DIR\" > \"$TEMP_DIR/notifier.log\" 2>&1 &\n\nNOTIFIER_PID=$!\necho \"🤖 启动 RPA 通知器 → PID $NOTIFIER_PID\"\n\n# 写入任务消息\nTIMESTAMP=$(date +%s)\nMSG_FILE=\"$TEMP_DIR/msg-$TIMESTAMP.json\"\ncat > \"$MSG_FILE\" << EOF\n{\n  \"timestamp\": $TIMESTAMP,\n  \"sender\": \"user\",\n  \"senderName\": \"用户\",\n  \"message\": \"$TASK\"\n}\nEOF\necho \"📩 已写入任务：$TASK\"\n\n# 等待超时或完成（检测 report-template.md 是否被填充）\necho \"⏳ 开始诊断会话（超时：$TIMEOUT）...\"\nsleep 2  # 确保服务就绪\n\n# 简单完成检测（真实版可对接 OpenClaw 回复）\nif timeout \"$TIMEOUT\" bash -c \"\n  for i in {1..60}; do\n    if [ -f '$TEMP_DIR/report-final.md' ]; then\n      echo '✅ 报告已生成'\n      exit 0\n    fi\n    sleep 1\n  done\n  echo '❌ 超时：未收到报告'\n  exit 1\n\"; then\n  echo \"🎉 会话成功完成！报告已生成。\"\nelse\n  echo \"⚠️  会话超时，正在清理...\"\n  kill $BRIDGE_PID $NOTIFIER_PID 2>/dev/null || true\n  rm -rf \"$TEMP_DIR\"\n  exit 1\nfi\n\n# 清理（保留 report-final.md）\nkill $BRIDGE_PID $NOTIFIER_PID 2>/dev/null || true\necho \"🧹 服务已停止，临时目录保留（含 report-final.md）\"\n
+#!/bin/bash
+# diagnose-session.sh —— Collab-in-a-Box 核心启动器
+# 用法：./diagnose-session.sh --task "分析这份日志" --timeout 10m
+
+set -e
+
+TASK=""
+TIMEOUT="10m"
+TEMP_DIR=""
+
+print_usage() {
+  echo "Usage: $0 --task \"<任务描述>\" [--timeout <duration>] [--help]"
+  echo "  --task      任务描述（必填）"
+  echo "  --timeout   超时时间（默认 10m）"
+  echo "  --help      显示此帮助"
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --task)
+      TASK="$2"
+      shift 2
+      ;;
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --help|-h)
+      print_usage
+      exit 0
+      ;;
+    *)
+      echo "未知参数: $1"
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$TASK" ]]; then
+  echo "❌ 错误：--task 参数为必填项"
+  print_usage
+  exit 1
+fi
+
+# 自动检测项目根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+echo "📍 项目根目录：$PROJECT_ROOT"
+
+# 创建临时会话目录（隔离）
+TEMP_DIR=$(mktemp -d -t collab-session-XXXXXX)
+echo "📁 创建临时会话目录：$TEMP_DIR"
+
+# 启动桥接服务（监听临时目录）
+node "$PROJECT_ROOT/src/bridge-server.js" \
+  --message-dir "$TEMP_DIR" \
+  --port 8768 > "$TEMP_DIR/bridge.log" 2>&1 &
+
+BRIDGE_PID=$!
+echo "🌐 启动桥接服务（端口 8768）→ PID $BRIDGE_PID"
+
+# 启动 RPA 监听（监听临时目录）
+node "$PROJECT_ROOT/src/rpa-notifier.js" \
+  --message-dir "$TEMP_DIR" > "$TEMP_DIR/notifier.log" 2>&1 &
+
+NOTIFIER_PID=$!
+echo "🤖 启动 RPA 通知器 → PID $NOTIFIER_PID"
+
+# 写入任务消息
+TIMESTAMP=$(date +%s)
+MSG_FILE="$TEMP_DIR/msg-$TIMESTAMP.json"
+cat > "$MSG_FILE" << EOF
+{
+  "timestamp": $TIMESTAMP,
+  "sender": "user",
+  "senderName": "用户",
+  "message": "$TASK"
+}
+EOF
+echo "📩 已写入任务：$TASK"
+
+# 等待超时或完成（检测 report-template.md 是否被填充）
+echo "⏳ 开始诊断会话（超时：$TIMEOUT）..."
+sleep 2  # 确保服务就绪
+
+# 简单完成检测（真实版可对接 OpenClaw 回复）
+if timeout "$TIMEOUT" bash -c "
+  for i in {1..60}; do
+    if [ -f '$TEMP_DIR/report-final.md' ]; then
+      echo '✅ 报告已生成'
+      exit 0
+    fi
+    sleep 1
+  done
+  echo '❌ 超时：未收到报告'
+  exit 1
+"; then
+  echo "🎉 会话成功完成！报告已生成。"
+else
+  echo "⚠️  会话超时，正在清理..."
+  kill $BRIDGE_PID $NOTIFIER_PID 2>/dev/null || true
+  rm -rf "$TEMP_DIR"
+  exit 1
+fi
+
+# 清理（保留 report-final.md）
+kill $BRIDGE_PID $NOTIFIER_PID 2>/dev/null || true
+echo "🧹 服务已停止，临时目录保留（含 report-final.md）"
